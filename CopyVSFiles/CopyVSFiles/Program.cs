@@ -12,22 +12,22 @@ namespace CopyVSFiles
 {
     class Program
     {
-        static DTE m_dte=null;
+        static DTE m_dte = null;
         static void Main(string[] args)
         {
             Type visualStudioType = Type.GetTypeFromProgID("VisualStudio.DTE.9.0");
             m_dte = Activator.CreateInstance(visualStudioType) as DTE;
-            m_dte.MainWindow.Visible = true;
-            if(args.Count()!=2)
+            m_dte.MainWindow.Visible = false;
+            if (args.Count() != 2)
             {
                 Console.WriteLine("Usage: {0} <Source path> <Dst Path>", System.AppDomain.CurrentDomain.FriendlyName);
                 return;
             }
             DirectoryInfo rootDir = new DirectoryInfo(args[0]);
-            WalkDirectoryTree(rootDir,args[1]);
+            WalkDirectoryTree(rootDir, args[1]);
         }
 
-        static void WalkDirectoryTree(DirectoryInfo _root,string _path)
+        static void WalkDirectoryTree(DirectoryInfo _root, string _path)
         {
             FileInfo[] files = null;
             DirectoryInfo[] subDirs = null;
@@ -35,11 +35,11 @@ namespace CopyVSFiles
             {
                 files = _root.GetFiles("*.*");
             }
-            catch(UnauthorizedAccessException e)
+            catch (UnauthorizedAccessException e)
             {
                 Console.WriteLine(e.Message);
             }
-            catch(DirectoryNotFoundException e)
+            catch (DirectoryNotFoundException e)
             {
                 Console.WriteLine(e.Message);
             }
@@ -48,42 +48,55 @@ namespace CopyVSFiles
              *  Create directory
              */
             Directory.CreateDirectory(_path);
-            if(files!=null)
+            if (files != null)
             {
-                foreach(FileInfo fi in files)
+                foreach (FileInfo fi in files)
                 {
                     Console.WriteLine(fi.Name);
                     /*
                      *  Copy the file to that directory
                      */
-                    if (fi.Extension == ".h" || fi.Extension == ".hpp" || fi.Extension == ".c"||fi.Extension == ".cpp")
+                    if (fi.Extension == ".h" || fi.Extension == ".hpp" || fi.Extension == ".c" || fi.Extension == ".cpp")
                     {
-                        CopyFiles(fi.FullName, _path + "/" + fi.Name);
+                        while (!CopyFiles(fi.FullName, _path + "/" + fi.Name))
+                        {
+                            Console.WriteLine("Try to copy {0} again!", fi.FullName);
+                        }
                     }
                     else
                     {
-                        File.Copy(fi.FullName, _path + "/" + fi.Name,true);
+                        File.Copy(fi.FullName, _path + "/" + fi.Name, true);
+                        //System.Threading.Thread.Sleep(2);
                     }
                 }
 
                 subDirs = _root.GetDirectories();
 
-                foreach(DirectoryInfo dir in subDirs)
+                foreach (DirectoryInfo dir in subDirs)
                 {
-                    WalkDirectoryTree(dir,_path+"/"+dir.Name);
+                    WalkDirectoryTree(dir, _path + "/" + dir.Name);
                 }
             }
 
         }
 
-        static void CopyFiles(string _src,string _dst)
+        static bool CopyFiles(string _src, string _dst)
         {
-            Window wnd=m_dte.ItemOperations.OpenFile(_src);
-            TextDocument doc = m_dte.ActiveDocument.Object("TextDocument");
-            var p = doc.StartPoint.CreateEditPoint();
-            string content = p.GetText(doc.EndPoint);
-            File.WriteAllText(_dst,content);
-            wnd.Close();
+            try
+            {
+                Window wnd = m_dte.ItemOperations.OpenFile(_src);
+                TextDocument doc = m_dte.ActiveDocument.Object("TextDocument");
+                var p = doc.StartPoint.CreateEditPoint();
+                string content = p.GetText(doc.EndPoint);
+                File.WriteAllText(_dst, content);
+                wnd.Close();
+                return true;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return false;
+            }
         }
     }
 }
